@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Map Point Calculator Assistant</title>
+    <style>
+      /* Material Design inspired styles */
+      body {
+        font-family: "Roboto", sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin: 0;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+      h1 {
+        color: #3f51b5;
+        margin-bottom: 20px;
+      }
+      .upload-area {
+        border: 2px dashed #3f51b5;
+        border-radius: 8px;
+        padding: 40px 20px;
+        width: 400px;
+        text-align: center;
+        cursor: pointer;
+        color: #3f51b5;
+        margin-bottom: 20px;
+        transition: background-color 0.2s;
+      }
+      .upload-area.dragover {
+        background-color: #e8eaf6;
+      }
+      input[type="file"] {
+        display: none;
+      }
+      .image-container {
+        position: relative;
+        display: inline-block;
+        margin-bottom: 20px;
+        max-width: 90vw;
+        max-height: 70vh;
+      }
+      #uploaded-image {
+        display: block;
+        max-width: 100%;
+        max-height: 70vh;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        touch-action: none;
+      }
+      .point {
+        position: absolute;
+        width: 40px;
+        height: 40px;
+        cursor: grab;
+        transform: translate(-50%, -50%);
+        touch-action: none;
+        /* Centering flex for hit area */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: transparent;
+      }
+      .point::before {
+        content: "";
+        position: absolute;
+        width: 40px;
+        height: 40px;
+        background: transparent;
+        border-radius: 50%;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      }
+      .point::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 16px;
+        height: 16px;
+        background-color: #ac69e2;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+        animation: pulse 2s infinite;
+        pointer-events: none;
+      }
+      .point.no-pulse::after {
+        animation: none;
+      }
+      @keyframes pulse {
+        0% {
+          transform: translate(-50%, -50%) scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: translate(-50%, -50%) scale(1.8);
+          opacity: 0;
+        }
+        100% {
+          transform: translate(-50%, -50%) scale(1);
+          opacity: 1;
+        }
+      }
+      .info-container {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+        justify-content: center;
+        border: 2px dashed #3f51b5;
+        border-radius: 8px;
+        padding: 12px 20px;
+        max-width: 400px;
+        background-color: #fafafa;
+      }
+      .info {
+        font-size: 16px;
+        margin: 0;
+        font-weight: bold;
+      }
+      button {
+        background-color: transparent;
+        color: #3f51b5;
+        border: 1.5px solid #3f51b5;
+        padding: 6px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background-color 0.2s, color 0.2s;
+      }
+      button:hover {
+        background-color: #3f51b5;
+        color: white;
+      }
+      .note {
+        max-width: 400px;
+        margin-bottom: 20px;
+        font-size: 14px;
+        color: #333;
+        font-weight: bold;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Map Point Calculator Assistant</h1>
+    <div class="upload-area" id="upload-area">
+      Drag & Drop or Click to Upload Image
+      <input type="file" id="file-input" accept="image/*" />
+    </div>
+    <div class="image-container" id="image-container" style="display: none">
+      <img id="uploaded-image" src="" alt="Uploaded" />
+      <div class="point" id="point"></div>
+    </div>
+    <div class="info-container">
+      <div class="info" id="coords-info">
+        X: <span id="coord-x"></span> <button id="copy-x">Copy</button> , Y:
+        <span id="coord-y"></span> <button id="copy-y">Copy</button>
+      </div>
+      <div class="info" id="dim-info"></div>
+      <button id="restart-btn" style="display: none">Restart</button>
+      <div class="note">
+        Drag the dot to select a point. The X and Y values can then be copied
+        and applied into Strapi.
+      </div>
+    </div>
+    <script>
+      const uploadArea = document.getElementById("upload-area");
+      const fileInput = document.getElementById("file-input");
+      const imageContainer = document.getElementById("image-container");
+      const uploadedImage = document.getElementById("uploaded-image");
+      const point = document.getElementById("point");
+      const coordsInfo = document.getElementById("coords-info");
+      const coordX = document.getElementById("coord-x");
+      const coordY = document.getElementById("coord-y");
+      const copyXBtn = document.getElementById("copy-x");
+      const copyYBtn = document.getElementById("copy-y");
+      const dimInfo = document.getElementById("dim-info");
+      const restartBtn = document.getElementById("restart-btn");
+
+      let imgWidth = 0,
+        imgHeight = 0;
+
+      // Upload handling
+      uploadArea.addEventListener("click", () => fileInput.click());
+      uploadArea.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        uploadArea.classList.add("dragover");
+      });
+      uploadArea.addEventListener("dragleave", (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove("dragover");
+      });
+      uploadArea.addEventListener("drop", (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove("dragover");
+        if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+      });
+      fileInput.addEventListener("change", () => {
+        if (fileInput.files[0]) handleFile(fileInput.files[0]);
+      });
+
+      function handleFile(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          uploadedImage.src = e.target.result;
+          imageContainer.style.display = "inline-block";
+          restartBtn.style.display = "inline-block";
+          uploadArea.style.display = "none";
+        };
+        reader.readAsDataURL(file);
+      }
+
+      // Initialize point after image loads
+      uploadedImage.addEventListener("load", () => {
+        imgWidth = uploadedImage.clientWidth;
+        imgHeight = uploadedImage.clientHeight;
+        dimInfo.textContent = `Image: ${imgWidth}px × ${imgHeight}px`;
+        setPoint(imgWidth / 2, imgHeight / 2);
+      });
+
+      function setPoint(x, y) {
+        x = Math.max(0, Math.min(x, imgWidth));
+        y = Math.max(0, Math.min(y, imgHeight));
+        point.style.left = x + "px";
+        point.style.top = y + "px";
+        // Update X and Y as percentages of image dimensions without %
+        coordX.textContent = ((x / imgWidth) * 100).toFixed(1);
+        coordY.textContent = ((y / imgHeight) * 100).toFixed(1);
+      }
+
+      // Dragging point
+      let dragging = false;
+
+      const movePoint = (e) => {
+        if (!dragging) return;
+        let clientX, clientY;
+        if (e.touches) {
+          clientX = e.touches[0].clientX;
+          clientY = e.touches[0].clientY;
+        } else {
+          clientX = e.clientX;
+          clientY = e.clientY;
+        }
+        const rect = uploadedImage.getBoundingClientRect();
+        let x = clientX - rect.left;
+        let y = clientY - rect.top;
+        setPoint(x, y);
+      };
+
+      function updatePulseState(isActive) {
+        if (isActive) {
+          point.classList.add("no-pulse");
+        } else {
+          point.classList.remove("no-pulse");
+        }
+      }
+
+      point.addEventListener("mousedown", (e) => {
+        dragging = true;
+        point.style.cursor = "grabbing";
+        updatePulseState(true);
+      });
+      point.addEventListener("touchstart", (e) => {
+        dragging = true;
+        point.style.cursor = "grabbing";
+        updatePulseState(true);
+        e.preventDefault();
+      });
+      point.addEventListener("mouseenter", () => {
+        updatePulseState(true);
+      });
+      point.addEventListener("mouseleave", () => {
+        if (!dragging) updatePulseState(false);
+      });
+
+      document.addEventListener("mouseup", (e) => {
+        dragging = false;
+        point.style.cursor = "grab";
+        updatePulseState(false);
+      });
+      document.addEventListener("touchend", (e) => {
+        dragging = false;
+        point.style.cursor = "grab";
+        updatePulseState(false);
+      });
+
+      document.addEventListener("mousemove", movePoint);
+      document.addEventListener("touchmove", movePoint, { passive: false });
+
+      // Copy handlers for X and Y
+      copyXBtn.addEventListener("click", () => {
+        if (coordX.textContent) {
+          navigator.clipboard.writeText(coordX.textContent);
+        }
+      });
+      copyYBtn.addEventListener("click", () => {
+        if (coordY.textContent) {
+          navigator.clipboard.writeText(coordY.textContent);
+        }
+      });
+
+      // Restart
+      restartBtn.addEventListener("click", () => {
+        uploadedImage.src = "";
+        imageContainer.style.display = "none";
+        uploadArea.style.display = "block";
+        coordX.textContent = "";
+        coordY.textContent = "";
+        dimInfo.textContent = "";
+        restartBtn.style.display = "none";
+      });
+    </script>
+  </body>
+</html>
