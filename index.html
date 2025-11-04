@@ -51,6 +51,31 @@
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         touch-action: none;
       }
+      .line {
+        position: absolute;
+        background: repeating-linear-gradient(
+          to right,
+          #3f51b5 0 6px,
+          transparent 6px 12px
+        );
+        pointer-events: none; /* allow dragging through */
+        opacity: 0.7;
+      }
+
+      /* Horizontal (X-axis) dashed line */
+      .line-x {
+        height: 2px;
+      }
+
+      /* Vertical (Y-axis) dashed line */
+      .line-y {
+        width: 2px;
+        background: repeating-linear-gradient(
+          to bottom,
+          #3f51b5 0 6px,
+          transparent 6px 12px
+        );
+      }
       .point {
         position: absolute;
         width: 40px;
@@ -157,6 +182,8 @@
     <div class="image-container" id="image-container" style="display: none">
       <img id="uploaded-image" src="" alt="Uploaded" />
       <div class="point" id="point"></div>
+      <div class="line line-x"></div>
+      <div class="line line-y"></div>
     </div>
     <div class="info-container">
       <div class="info" id="coords-info">
@@ -230,6 +257,18 @@
         y = Math.max(0, Math.min(y, imgHeight));
         point.style.left = x + "px";
         point.style.top = y + "px";
+         // Update dashed lines
+        const lineX = document.querySelector(".line-x");
+        const lineY = document.querySelector(".line-y");
+        if (lineX && lineY) {
+          lineX.style.top = y + "px";
+          lineX.style.left = 0;
+          lineX.style.width = x + "px";
+
+          lineY.style.left = x + "px";
+          lineY.style.top = 0;
+          lineY.style.height = y + "px";
+        }
         // Update X and Y as percentages of image dimensions without %
         coordX.textContent = ((x / imgWidth) * 100).toFixed(1);
         coordY.textContent = ((y / imgHeight) * 100).toFixed(1);
@@ -298,14 +337,16 @@
       copyXBtn.addEventListener("click", () => {
         if (coordX.textContent) {
           navigator.clipboard.writeText(coordX.textContent);
-        }
-      });
-      copyYBtn.addEventListener("click", () => {
-        if (coordY.textContent) {
-          navigator.clipboard.writeText(coordY.textContent);
+          temporaryButtonState(copyXBtn, "Copied!");
         }
       });
 
+      copyYBtn.addEventListener("click", () => {
+        if (coordY.textContent) {
+          navigator.clipboard.writeText(coordY.textContent);
+          temporaryButtonState(copyYBtn, "Copied!");
+        }
+      });
       // Restart
       restartBtn.addEventListener("click", () => {
         uploadedImage.src = "";
@@ -316,6 +357,19 @@
         dimInfo.textContent = "";
         restartBtn.style.display = "none";
       });
+
+      function temporaryButtonState(button, tempText, duration = 3000) {
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = tempText;
+        button.style.opacity = "0.6";
+        setTimeout(() => {
+          button.textContent = originalText;
+          button.disabled = false;
+          button.style.opacity = "1";
+        }, duration);
+      }
+      
     </script>
   </body>
 </html>
